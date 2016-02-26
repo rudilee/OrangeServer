@@ -4,15 +4,20 @@
 #
 #-------------------------------------------------
 
-QT       += core
+include(../lib/qt-solutions/qtservice/src/qtservice.pri)
 
+QT       += core
 QT       -= gui
 
 TARGET = orange
 CONFIG   += console
 CONFIG   -= app_bundle
+CONFIG   += static
 
 TEMPLATE = app
 
+SOURCES += main.cpp \
+    service.cpp
 
-SOURCES += main.cpp
+HEADERS += \
+    service.h

@@ -1,8 +1,8 @@
-#include <QCoreApplication>
+#include "service.h"
 
 int main(int argc, char *argv[])
 {
-    QCoreApplication a(argc, argv);
+    Service service(argc, argv);
 
-    return a.exec();
+    return service.exec();
 }
