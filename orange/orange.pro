@@ -6,7 +6,7 @@
 
 include(../../lib/qt-solutions/qtservice/src/qtservice.pri)
 
-QT       += core network
+QT       += core network sql
 QT       -= gui
 
 TARGET = orange
@@ -25,4 +25,5 @@ SOURCES += main.cpp \
 HEADERS += \
     service.h \
     worker.h \
-    client.h
+    client.h \
+    common.h
