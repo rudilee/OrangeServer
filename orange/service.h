@@ -3,6 +3,7 @@
 
 #include <QtService>
 #include <QSettings>
+#include <QSqlDatabase>
 #include <QTcpServer>
 
 #include "worker.h"
@@ -28,13 +29,17 @@ protected:
     void createWorkers();
     void stopWorkers();
 
+    void setupDatabase();
+
     int circulateWorkerIndex();
 
 private:
-    QSettings settings;
+    QSettings *settings;
     QTcpServer server;
+    QSqlDatabase database;
     QList<Worker *> workers;
     QHash<QString, Client *> clientAddressMap; // key: IP Address
+    QHash<QString, Client *> clientUserMap; // key: Username
     int workerCount, currentWorkerIndex;
 
 protected slots:
@@ -45,6 +50,9 @@ protected slots:
     void onClientSocketDisconnected();
     void onClientUserLoggedIn(QString username);
     void onClientUserLoggedOut(QString username);
+
+private slots:
+    void openDatabase();
 };
 
 #endif // SERVICE_H
