@@ -30,6 +30,7 @@ protected:
     void stopWorkers();
 
     void setupDatabase();
+    void forceLogoutUsers();
 
     int circulateWorkerIndex();
 

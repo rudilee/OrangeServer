@@ -3,6 +3,7 @@
 #include <QDebug>
 
 #include "common.h"
+#include "terminal.h"
 #include "service.h"
 
 Service::Service(int &argc, char **argv) :
@@ -34,7 +35,7 @@ void Service::createApplication(int &argc, char **argv)
 
 void Service::processCommand(int code)
 {
-    qDebug() << "Received command code:" << code;
+    qDebug() << "Received command code:" BOLD BLUE << code << RESET;
 }
 
 void Service::start()
@@ -48,6 +49,7 @@ void Service::start()
 
 void Service::stop()
 {
+    forceLogoutUsers();
     stopWorkers();
 
     qDebug("Service stopped");
@@ -66,7 +68,7 @@ void Service::startServer()
 
     server.listen(QHostAddress::Any, port);
 
-    qDebug() << "Server started, listening on port:" << port;
+    qDebug() << "Server started, listening on port:" BOLD BLUE << port << RESET;
 }
 
 void Service::createWorkers()
@@ -101,7 +103,7 @@ void Service::setupDatabase()
     QString host = settings->value("database/host", "localhost").toString(),
             name = settings->value("database/name", "icentra").toString(),
             username = settings->value("database/username", "icentra").toString(),
-            password = settings->value("database/password", "jengkolman").toString();
+            password = settings->value("database/password").toString();
 
     int port = settings->value("database/port", 5432).toInt();
 
@@ -110,7 +112,19 @@ void Service::setupDatabase()
     database.setPort(port);
     database.setDatabaseName(name);
     database.setUserName(username);
-    database.setPassword(password);
+
+    if (!password.isEmpty())
+        database.setPassword(password);
+}
+
+void Service::forceLogoutUsers()
+{
+    QHashIterator<QString, Client *> clientAddress(clientAddressMap);
+
+    while (clientAddress.hasNext()) {
+        clientAddress.next();
+        clientAddress.value()->forceLogout();
+    }
 }
 
 int Service::circulateWorkerIndex()
@@ -136,7 +150,7 @@ void Service::onServerNewConnection()
         connect(client, SIGNAL(userLoggedIn(QString)), SLOT(onClientUserLoggedIn(QString)));
         connect(client, SIGNAL(userLoggedOut(QString)), SLOT(onClientUserLoggedOut(QString)));
 
-        qDebug() << "Client connected from:" << clientAddress;
+        qDebug() << "Client connected from:" BOLD BLUE << clientAddress << RESET;
     }
 }
 
@@ -181,7 +195,7 @@ void Service::openDatabase()
 {
     if (!database.isOpen()) {
         if (!database.open()) {
-            qDebug("Database connection failed, reconnecting in 15 seconds");
+            qWarning("Database connection failed, reconnecting in 15 seconds");
 
             QTimer::singleShot(15000, this, SLOT(openDatabase()));
         } else {
