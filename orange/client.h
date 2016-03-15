@@ -13,6 +13,21 @@ class Client : public QObject
     Q_OBJECT
 
 public:
+    enum Level {
+        Agent,
+        Supervisor,
+        Manager
+    };
+
+    enum Status {
+        Login = 1,
+        Ready,
+        NotReady,
+        Logout,
+        AUX,
+        ACW
+    };
+
     explicit Client(QObject *parent = 0);
     ~Client();
 
@@ -24,8 +39,7 @@ protected:
 
     void logFailedQuery(QSqlQuery *query, QString queryTitle);
 
-    QString getCurrentTime();
-    QVariant getLastInsertId(QString table, QString id);
+    QVariant getLastInsertId(QString table, QString column);
 
     void initiateHandshake();
 
@@ -34,6 +48,12 @@ protected:
 
     void startSession();
     void endSession();
+
+    void startStatus(Status status);
+    void changeStatus(Status status);
+    void endStatus();
+
+    void endLogging();
 
     void resetHeartbeatTimer();
     void checkAuthentication(QString authentication, bool encrypted);
@@ -45,7 +65,10 @@ private:
     QXmlStreamWriter socketOut;
     int heartbeatTimerId;
     quint32 agentId, agentExtenMapId;
-    quint64 agentSessionId;
+    quint64 agentLogSessionId, agentLogStatusId;
+    QString username;
+    Level level;
+    Status status;
 
 protected slots:
     void onSocketDisconnected();

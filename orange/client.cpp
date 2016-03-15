@@ -3,9 +3,11 @@
 #include <QSqlError>
 #include <QDateTime>
 #include <QHostAddress>
+#include <QCryptographicHash>
 #include <QDebug>
 
 #include "common.h"
+#include "terminal.h"
 #include "client.h"
 
 Client::Client(QObject *parent) :
@@ -15,7 +17,8 @@ Client::Client(QObject *parent) :
     heartbeatTimerId(0),
     agentId(0),
     agentExtenMapId(0),
-    agentSessionId(0)
+    agentLogSessionId(0),
+    agentLogStatusId(0)
 {
     socketOut.setAutoFormatting(true);
 
@@ -48,12 +51,17 @@ void Client::setSocket(QTcpSocket *socket)
 
 void Client::forceLogout()
 {
+    if (agentId <= 0)
+        return;
+
     socketOut.writeStartElement("authentication");
     socketOut.writeAttribute("id", "force-logout");
     socketOut.writeTextElement("status", "server stop services");
     socketOut.writeEndElement();
 
     socket->write("\n");
+
+    endLogging();
 }
 
 void Client::timerEvent(QTimerEvent *event)
@@ -65,18 +73,13 @@ void Client::timerEvent(QTimerEvent *event)
 
 void Client::logFailedQuery(QSqlQuery *query, QString queryTitle)
 {
-    qWarning() << "Database query for " << queryTitle << " failed, error:" << query->lastError();
+    qCritical() << "Database query for" << queryTitle << "failed, error:" BOLD CYAN << query->lastError() << RESET;
 }
 
-QString Client::getCurrentTime()
-{
-    return QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
-}
-
-QVariant Client::getLastInsertId(QString table, QString id)
+QVariant Client::getLastInsertId(QString table, QString column)
 {
     QSqlQuery retrieveId;
-    QString query = QString("SELECT currval(pg_get_serial_sequence('%1', '%2'))").arg(table, id);
+    QString query = QString("SELECT currval(pg_get_serial_sequence('%1', '%2'))").arg(table, column);
 
     if (retrieveId.exec(query)) {
         if (retrieveId.next())
@@ -123,7 +126,7 @@ void Client::initiateHandshake()
 void Client::retrieveExtension()
 {
     QSqlQuery retrieveExtension;
-    retrieveExtension.prepare("SELECT acd_agent_exten_map_id, extension"
+    retrieveExtension.prepare("SELECT acd_agent_exten_map_id, extension "
                               "FROM acd_agent_exten_map "
                               "WHERE ip_address = :ip_address");
 
@@ -172,33 +175,87 @@ void Client::retrieveSkills()
 void Client::startSession()
 {
     QSqlQuery insertSession;
-    insertSession.prepare("INSERT INTO acd_log_agent_session "
-                         "(acd_agent_id, acd_agent_exten_map_id, login_time) "
-                         "VALUES :agent_id, :agent_exten_map_id, :login_time");
+    insertSession.prepare("INSERT INTO acd_log_agent_session (acd_agent_id, acd_agent_exten_map_id, login_time) "
+                          "VALUES (:agent_id, :agent_exten_map_id, :login_time)");
 
     insertSession.bindValue(":agent_id", agentId);
     insertSession.bindValue(":agent_exten_map_id", agentExtenMapId);
-    insertSession.bindValue(":login_time", getCurrentTime());
+    insertSession.bindValue(":login_time", QDateTime::currentDateTime());
 
     if (insertSession.exec())
-        agentSessionId = getLastInsertId("acd_log_agent_session", "acd_log_agent_session_id").toULongLong();
+        agentLogSessionId = getLastInsertId("acd_log_agent_session", "acd_log_agent_session_id").toULongLong();
     else
-        logFailedQuery(&insertSession, "inserting session");
+        logFailedQuery(&insertSession, "inserting session log");
 }
 
 void Client::endSession()
 {
-    if (agentSessionId <= 0)
+    if (agentLogSessionId <= 0)
         return;
 
     QSqlQuery updateSession;
     updateSession.prepare("UPDATE acd_log_agent_session "
                           "SET logout_time = :logout_time "
-                          "WHERE acd_log_agent_session_id = :agent_session_id");
+                          "WHERE acd_log_agent_session_id = :agent_log_session_id");
 
-    if (!updateSession.exec())
-        logFailedQuery(&updateSession, "updating session");
+    updateSession.bindValue(":logout_time", QDateTime::currentDateTime());
+    updateSession.bindValue(":agent_log_session_id", agentLogSessionId);
 
+    if (updateSession.exec())
+        agentLogSessionId = 0;
+    else
+        logFailedQuery(&updateSession, "updating session log");
+}
+
+void Client::startStatus(Status status)
+{
+    this->status = status;
+
+    QSqlQuery insertStatus;
+    insertStatus.prepare("INSERT INTO acd_log_agent_status (acd_log_agent_session_id, acd_agent_status_id, start) "
+                         "VALUES (:agent_log_session_id, :status, :start)");
+
+    insertStatus.bindValue(":agent_log_session_id", agentLogSessionId);
+    insertStatus.bindValue(":status", (quint16) status);
+    insertStatus.bindValue(":start", QDateTime::currentDateTime());
+
+    if (insertStatus.exec())
+        agentLogStatusId = getLastInsertId("acd_log_agent_status", "acd_log_agent_status_id").toULongLong();
+    else
+        logFailedQuery(&insertStatus, "inserting status log");
+}
+
+void Client::changeStatus(Client::Status status)
+{
+    endStatus();
+    startStatus(status);
+}
+
+void Client::endStatus()
+{
+    if (agentLogStatusId <= 0)
+        return;
+
+    QSqlQuery updateStatus;
+    updateStatus.prepare("UPDATE acd_log_agent_status "
+                         "SET finish = :finish "
+                         "WHERE acd_log_agent_status_id = :agent_log_status_id");
+
+    updateStatus.bindValue(":finish", QDateTime::currentDateTime());
+    updateStatus.bindValue(":agent_log_status_id", agentLogStatusId);
+
+    if (updateStatus.exec())
+        agentLogStatusId = 0;
+    else
+        logFailedQuery(&updateStatus, "updating status log");
+}
+
+void Client::endLogging()
+{
+    if (status != Logout)
+        changeStatus(Logout);
+
+    endSession();
 }
 
 void Client::resetHeartbeatTimer()
@@ -218,28 +275,33 @@ void Client::checkAuthentication(QString authentication, bool encrypted)
         authentication = QByteArray::fromBase64(authentication.toLatin1());
 
     QStringList usernamePassword = QString(authentication).split(":");
+    QString hashedPassword = QCryptographicHash::hash(usernamePassword[1].toLatin1(), QCryptographicHash::Md5).toHex();
 
     socketOut.writeStartElement("authentication");
     socketOut.writeAttribute("id", "status");
 
     QSqlQuery retrieveUser;
-    retrieveUser.prepare("SELECT acd_agent_id, username, password, level "
+    retrieveUser.prepare("SELECT acd_agent_id, name, password, level "
                          "FROM acd_agent "
                          "WHERE name = :username AND password = :password");
 
     retrieveUser.bindValue(":username", usernamePassword[0]);
-    retrieveUser.bindValue(":password", usernamePassword[1]);
+    retrieveUser.bindValue(":password", hashedPassword);
 
     if (retrieveUser.exec()) {
         if (retrieveUser.next()) {
+            username = usernamePassword[0];
+            level = (Level) retrieveUser.value(3).toUInt();
             agentId = retrieveUser.value(0).toUInt();
+            status = "ok";
 
-            socketOut.writeTextElement("level", retrieveUser.value(3).toString());
-            socketOut.writeTextElement("login", getCurrentTime());
+            socketOut.writeTextElement("level", QString::number(level));
+            socketOut.writeTextElement("login", QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss"));
 
             retrieveExtension();
             retrieveSkills();
             startSession();
+            startStatus(Login);
         } else {
             message = "Username/Password incorrect";
         }
@@ -265,6 +327,8 @@ void Client::onSocketDisconnected()
 
     socket->deleteLater();
 
+    endLogging();
+
     qDebug("Client disconnected");
 }
 
@@ -273,7 +337,7 @@ void Client::onSocketError(QAbstractSocket::SocketError socketError)
     int indexOfSocketError = QAbstractSocket::staticMetaObject.indexOfEnumerator("SocketError");
     QString socketErrorKey = QAbstractSocket::staticMetaObject.enumerator(indexOfSocketError).key(socketError);
 
-    qDebug() << "Client connection error:" << socketErrorKey;
+    qWarning() << "Client connection error:" BOLD CYAN << socketErrorKey << RESET;
 }
 
 void Client::onSocketReadyRead()
@@ -297,13 +361,18 @@ void Client::onSocketReadyRead()
                 bool encrypted = attributes.value("type").toString() == "encrypted";
 
                 checkAuthentication(authentication, encrypted);
+            } else if (elementName == "action") {
+                // TODO: proses action dan children tagnya
             }
 
             break;
         }
         case QXmlStreamReader::EndElement:
-            if (socketIn.name() == "stream")
+            if (socketIn.name() == "stream") {
                 socket->disconnectFromHost();
+
+                endLogging();
+            }
 
             break;
         case QXmlStreamReader::Invalid:
