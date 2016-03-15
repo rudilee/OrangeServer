@@ -26,4 +26,5 @@ HEADERS += \
     service.h \
     worker.h \
     client.h \
-    common.h
+    common.h \
+    terminal.h
