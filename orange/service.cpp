@@ -117,6 +117,13 @@ void Service::setupDatabase()
         database.setPassword(password);
 }
 
+int Service::circulateWorkerIndex()
+{
+    currentWorkerIndex = (currentWorkerIndex + 1) % workerCount;
+
+    return currentWorkerIndex;
+}
+
 void Service::forceLogoutUsers()
 {
     QHashIterator<QString, Client *> clientAddress(clientAddressMap);
@@ -125,13 +132,6 @@ void Service::forceLogoutUsers()
         clientAddress.next();
         clientAddress.value()->forceLogout();
     }
-}
-
-int Service::circulateWorkerIndex()
-{
-    currentWorkerIndex = (currentWorkerIndex + 1) % workerCount;
-
-    return currentWorkerIndex;
 }
 
 void Service::onServerNewConnection()

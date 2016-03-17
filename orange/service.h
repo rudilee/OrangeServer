@@ -25,14 +25,13 @@ protected:
 
     void setupServer();
     void startServer();
-
     void createWorkers();
     void stopWorkers();
-
     void setupDatabase();
-    void forceLogoutUsers();
 
     int circulateWorkerIndex();
+
+    void forceLogoutUsers();
 
 private:
     QSettings *settings;
