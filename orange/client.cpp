@@ -1,7 +1,6 @@
 #include <QMetaEnum>
 #include <QStringList>
 #include <QSqlError>
-#include <QDateTime>
 #include <QHostAddress>
 #include <QCryptographicHash>
 #include <QDebug>
@@ -18,9 +17,15 @@ Client::Client(QObject *parent) :
     agentId(0),
     agentExtenMapId(0),
     agentLogSessionId(0),
-    agentLogStatusId(0)
+    agentLogStatusId(0),
+    handle(0),
+    abandoned(0)
 {
     socketOut.setAutoFormatting(true);
+
+    statusText["ready"] = Ready;
+    statusText["acw"] = ACW;
+    statusText["aux"] = AUX;
 
     qDebug("Client initialized");
 }
@@ -64,11 +69,57 @@ void Client::forceLogout()
     endLogging();
 }
 
+void Client::sendAgentStatus(QString username, QString fullname, int handle, int abandoned, Client::Phone phone, QString group)
+{
+    bool timeValid = phone.time.isValid(),
+         groupEmpty = group.isEmpty();
+
+    socketOut.writeStartElement("agent");
+
+    socketOut.writeTextElement("username", username.isEmpty() ? this->username : username);
+    socketOut.writeTextElement("fullname", fullname.isEmpty() ? this->fullname : fullname);
+
+    if (!groupEmpty)
+        socketOut.writeTextElement("group", group);
+
+    socketOut.writeTextElement("handle", QString::number(handle == 0 ? this->handle : handle));
+    socketOut.writeTextElement("abandoned", QString::number(abandoned == 0 ? this->abandoned : abandoned));
+
+    socketOut.writeTextElement("time", timeValid ? phone.time.toString("yyyy-MM-dd HH:mm:ss") :
+                                                   this->phone.time.toString("yyyy-MM-dd HH:mm:ss"));
+
+    socketOut.writeStartElement("phone");
+    socketOut.writeAttribute("status", timeValid ? phone.status : this->phone.status);
+    socketOut.writeAttribute("outbound", (timeValid ? phone.outbound : this->phone.outbound) ? "true" : "false");
+
+    if (!groupEmpty)
+        socketOut.writeAttribute("group", group);
+
+    if (timeValid ? !phone.channel.isEmpty() : !this->phone.channel.isEmpty()) {
+        socketOut.writeAttribute((timeValid ? phone.active : this->phone.active) ? "activechannel" : "passivechannel",
+                                 timeValid ? phone.channel : this->phone.channel);
+    }
+
+    if (timeValid ? !phone.dnis.isEmpty() : !this->phone.dnis.isEmpty()) {
+        socketOut.writeEmptyElement((timeValid ? phone.active : this->phone.active) ? "callee" : "caller");
+        socketOut.writeAttribute("dnis", timeValid ? phone.dnis : this->phone.dnis);
+        socketOut.writeEndElement();
+    }
+
+    socketOut.writeEndElement();
+
+    socketOut.writeEndElement();
+
+    socket->write("\n");
+}
+
 void Client::timerEvent(QTimerEvent *event)
 {
-    socket->write("-ERR Timeout");
-    socket->waitForBytesWritten(1000);
+    socket->write("-ERR Timeout\n");
+    socket->flush();
     socket->disconnectFromHost();
+
+    Q_UNUSED(event)
 }
 
 void Client::logFailedQuery(QSqlQuery *query, QString queryTitle)
@@ -229,6 +280,8 @@ void Client::changeStatus(Client::Status status)
 {
     endStatus();
     startStatus(status);
+
+    emit userStatusChanged(username, status);
 }
 
 void Client::endStatus()
@@ -258,12 +311,25 @@ void Client::endLogging()
     endSession();
 }
 
+void Client::changePhoneStatus(QString status, bool outbound)
+{
+    phone.time = QDateTime::currentDateTime();
+    phone.status = status;
+    phone.outbound = outbound;
+
+    sendAgentStatus();
+
+    emit phoneStatusChanged(username, status);
+
+    qDebug() << "Phone status of" BOLD BLUE << username << RESET "changed to:" BOLD BLUE << status << RESET;
+}
+
 void Client::resetHeartbeatTimer()
 {
     if (heartbeatTimerId > 0)
         killTimer(heartbeatTimerId);
 
-    heartbeatTimerId = startTimer(15000);
+    heartbeatTimerId = startTimer(20000);
 }
 
 void Client::checkAuthentication(QString authentication, bool encrypted)
@@ -281,7 +347,7 @@ void Client::checkAuthentication(QString authentication, bool encrypted)
     socketOut.writeAttribute("id", "status");
 
     QSqlQuery retrieveUser;
-    retrieveUser.prepare("SELECT acd_agent_id, name, password, level "
+    retrieveUser.prepare("SELECT acd_agent_id, name, password, fullname, level "
                          "FROM acd_agent "
                          "WHERE name = :username AND password = :password");
 
@@ -291,7 +357,8 @@ void Client::checkAuthentication(QString authentication, bool encrypted)
     if (retrieveUser.exec()) {
         if (retrieveUser.next()) {
             username = usernamePassword[0];
-            level = (Level) retrieveUser.value(3).toUInt();
+            fullname = retrieveUser.value(3).toString();
+            level = (Level) retrieveUser.value(4).toUInt();
             agentId = retrieveUser.value(0).toUInt();
             status = "ok";
 
@@ -302,6 +369,8 @@ void Client::checkAuthentication(QString authentication, bool encrypted)
             retrieveSkills();
             startSession();
             startStatus(Login);
+
+            emit userLoggedIn(username);
         } else {
             message = "Username/Password incorrect";
         }
@@ -319,6 +388,37 @@ void Client::checkAuthentication(QString authentication, bool encrypted)
     socketOut.writeEndElement();
 
     socket->write("\n");
+}
+
+void Client::dispatchAction(QString actionType, QXmlStreamAttributes attributes)
+{
+    if (actionType == "ready") {
+        bool outbound = attributes.value("outbound").toString() == "true",
+             ready = attributes.value("value").toString() == "true";
+
+        QString status = ready ? "ready" : attributes.value("mode").toString();
+
+        changeStatus(statusText.value(status));
+        changePhoneStatus(status, outbound);
+    } else if (actionType == "ask-dial-authorization") {
+        QString customerId = attributes.value("customerid").toString(),
+                destination = attributes.value("destination").toString(),
+                campaign = attributes.value("campaign").toString();
+
+        ;
+    } else if (actionType == "status") {
+        bool outbound = attributes.value("outbound").toString() == "true",
+             ready = attributes.value("ready").toString() == "true";
+
+        QString group = attributes.value("group").toString(),
+                extension = attributes.value("extension").toString();
+
+        ;
+    } else if (actionType == "spy") {
+        QString agent = attributes.value("agent").toString();
+
+        ;
+    }
 }
 
 void Client::onSocketDisconnected()
@@ -362,7 +462,12 @@ void Client::onSocketReadyRead()
 
                 checkAuthentication(authentication, encrypted);
             } else if (elementName == "action") {
-                // TODO: proses action dan children tagnya
+                QString actionType = attributes.value("type").toString();
+
+                if (socketIn.readNextStartElement()) {
+                    if (socketIn.name().toString() == actionType)
+                        dispatchAction(actionType, socketIn.attributes());
+                }
             }
 
             break;
@@ -372,14 +477,16 @@ void Client::onSocketReadyRead()
                 socket->disconnectFromHost();
 
                 endLogging();
+
+                emit userLoggedOut(username);
             }
 
             break;
         case QXmlStreamReader::Invalid:
-            qDebug() << socketIn.text() << socketIn.errorString();
-
+//            qDebug() << socketIn.errorString();
             break;
-        default: qDebug() << "Token:" << tokenType;
+        default:
+//            qDebug() << "Token:" << tokenType;
             break;
         }
     }
