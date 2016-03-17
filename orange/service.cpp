@@ -147,8 +147,12 @@ void Service::onServerNewConnection()
         clientAddressMap.insert(clientAddress, client);
 
         connect(client, SIGNAL(socketDisconnected()), SLOT(onClientSocketDisconnected()));
-        connect(client, SIGNAL(userLoggedIn(QString)), SLOT(onClientUserLoggedIn(QString)));
-        connect(client, SIGNAL(userLoggedOut(QString)), SLOT(onClientUserLoggedOut(QString)));
+        connect(client, SIGNAL(userLoggedIn()), SLOT(onClientUserLoggedIn()));
+        connect(client, SIGNAL(userLoggedOut()), SLOT(onClientUserLoggedOut()));
+        connect(client, SIGNAL(userStatusChanged(Client::Status)), SLOT(onClientUserStatusChanged(Client::Status)));
+        connect(client, SIGNAL(phoneStatusChanged(QString)), SLOT(onClientPhoneStatusChanged(QString)));
+        connect(client, SIGNAL(askDialAuthorization(QString,QString,QString)), SLOT(onClientAskDialAuthorization(QString,QString,QString)));
+        connect(client, SIGNAL(changeAgentStatus(Client::Status,QString)), SLOT(onClientChangeAgentStatus(Client::Status,QString)));
 
         qDebug() << "Client connected from:" BOLD BLUE << clientAddress << RESET;
     }
@@ -178,17 +182,40 @@ void Service::onClientSocketDisconnected()
     client->deleteLater();
 }
 
-void Service::onClientUserLoggedIn(QString username)
+void Service::onClientUserLoggedIn()
 {
     Client *client = (Client *) sender();
 
-    clientUserMap.insert(username, client);
+    clientUserMap.insert(client->getUsername(), client);
 }
 
-void Service::onClientUserLoggedOut(QString username)
+void Service::onClientUserLoggedOut()
 {
+    Client *client = (Client *) sender();
+    QString username = client->getUsername();
+
     if (clientUserMap.contains(username))
         clientUserMap.remove(username);
+}
+
+void Service::onClientUserStatusChanged(Client::Status status)
+{
+    ;
+}
+
+void Service::onClientPhoneStatusChanged(QString status)
+{
+    ;
+}
+
+void Service::onClientAskDialAuthorization(QString destination, QString customerId, QString campaign)
+{
+    ;
+}
+
+void Service::onClientChangeAgentStatus(Client::Status status, QString extension)
+{
+    ;
 }
 
 void Service::openDatabase()

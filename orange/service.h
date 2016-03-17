@@ -48,8 +48,12 @@ protected slots:
     void onWorkerFinished();
 
     void onClientSocketDisconnected();
-    void onClientUserLoggedIn(QString username);
-    void onClientUserLoggedOut(QString username);
+    void onClientUserLoggedIn();
+    void onClientUserLoggedOut();
+    void onClientUserStatusChanged(Client::Status status);
+    void onClientPhoneStatusChanged(QString status);
+    void onClientAskDialAuthorization(QString destination, QString customerId, QString campaign);
+    void onClientChangeAgentStatus(Client::Status status, QString extension);
 
 private slots:
     void openDatabase();

@@ -37,6 +37,26 @@ Client::~Client()
     qDebug("Client destroyed");
 }
 
+QString Client::getUsername()
+{
+    return username;
+}
+
+QString Client::getFullname()
+{
+    return fullname;
+}
+
+Client::Level Client::getLevel()
+{
+    return level;
+}
+
+Client::Phone Client::getPhone()
+{
+    return phone;
+}
+
 void Client::setSocket(QTcpSocket *socket)
 {
     this->socket = socket;
@@ -281,7 +301,7 @@ void Client::changeStatus(Client::Status status)
     endStatus();
     startStatus(status);
 
-    emit userStatusChanged(username, status);
+    emit userStatusChanged(status);
 }
 
 void Client::endStatus()
@@ -319,7 +339,7 @@ void Client::changePhoneStatus(QString status, bool outbound)
 
     sendAgentStatus();
 
-    emit phoneStatusChanged(username, status);
+    emit phoneStatusChanged(status);
 
     qDebug() << "Phone status of" BOLD BLUE << username << RESET "changed to:" BOLD BLUE << status << RESET;
 }
@@ -370,7 +390,7 @@ void Client::checkAuthentication(QString authentication, bool encrypted)
             startSession();
             startStatus(Login);
 
-            emit userLoggedIn(username);
+            emit userLoggedIn();
         } else {
             message = "Username/Password incorrect";
         }
@@ -405,7 +425,11 @@ void Client::dispatchAction(QString actionType, QXmlStreamAttributes attributes)
                 destination = attributes.value("destination").toString(),
                 campaign = attributes.value("campaign").toString();
 
-        ;
+        emit askDialAuthorization(destination, customerId, campaign);
+    } else if (actionType == "spy") {
+        QString agent = attributes.value("agent").toString();
+
+        emit spyAgentPhone(agent);
     } else if (actionType == "status") {
         bool outbound = attributes.value("outbound").toString() == "true",
              ready = attributes.value("ready").toString() == "true";
@@ -413,11 +437,10 @@ void Client::dispatchAction(QString actionType, QXmlStreamAttributes attributes)
         QString group = attributes.value("group").toString(),
                 extension = attributes.value("extension").toString();
 
-        ;
-    } else if (actionType == "spy") {
-        QString agent = attributes.value("agent").toString();
+        emit changeAgentStatus(ready ? Ready : NotReady, extension);
 
-        ;
+        Q_UNUSED(outbound)
+        Q_UNUSED(group)
     }
 }
 
@@ -478,7 +501,7 @@ void Client::onSocketReadyRead()
 
                 endLogging();
 
-                emit userLoggedOut(username);
+                emit userLoggedOut();
             }
 
             break;

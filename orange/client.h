@@ -41,6 +41,11 @@ public:
     explicit Client(QObject *parent = 0);
     ~Client();
 
+    QString getUsername();
+    QString getFullname();
+    Client::Level getLevel();
+    Client::Phone getPhone();
+
     void setSocket(QTcpSocket *socket);
     void forceLogout();
 
@@ -100,10 +105,14 @@ protected slots:
 signals:
     void socketDisconnected();
 
-    void userLoggedIn(QString username);
-    void userLoggedOut(QString username);
-    void userStatusChanged(QString username, Status status);
-    void phoneStatusChanged(QString username, QString status);
+    void userLoggedIn();
+    void userLoggedOut();
+    void userStatusChanged(Client::Status status);
+    void phoneStatusChanged(QString status);
+
+    void askDialAuthorization(QString destination, QString customerId, QString campaign);
+    void spyAgentPhone(QString username);
+    void changeAgentStatus(Client::Status status, QString extension);
 };
 
 #endif // CLIENT_H
