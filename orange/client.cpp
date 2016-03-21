@@ -116,40 +116,37 @@ void Client::forceLogout()
     endLogging();
 }
 
-void Client::sendAgentStatus(QString username, QString fullname, int handle, int abandoned, Client::Phone phone, QString group)
+void Client::sendAgentStatus(QString username, QString fullname, Client::Phone phone, int handle, int abandoned, QString group)
 {
-    bool timeValid = phone.time.isValid(),
-         groupEmpty = group.isEmpty();
+    bool groupEmpty = group.isEmpty();
 
     socketOut.writeStartElement("agent");
 
-    socketOut.writeTextElement("username", username.isEmpty() ? this->username : username);
-    socketOut.writeTextElement("fullname", fullname.isEmpty() ? this->fullname : fullname);
+    socketOut.writeTextElement("username", username);
+    socketOut.writeTextElement("fullname", fullname);
 
     if (!groupEmpty)
         socketOut.writeTextElement("group", group);
 
-    socketOut.writeTextElement("handle", QString::number(handle == 0 ? this->handle : handle));
-    socketOut.writeTextElement("abandoned", QString::number(abandoned == 0 ? this->abandoned : abandoned));
+    socketOut.writeTextElement("handle", QString::number(handle));
+    socketOut.writeTextElement("abandoned", QString::number(abandoned));
 
-    socketOut.writeTextElement("time", timeValid ? phone.time.toString("yyyy-MM-dd HH:mm:ss") :
-                                                   this->phone.time.toString("yyyy-MM-dd HH:mm:ss"));
+    socketOut.writeTextElement("time", phone.time.toString("yyyy-MM-dd HH:mm:ss"));
 
     socketOut.writeStartElement("phone");
-    socketOut.writeAttribute("status", timeValid ? phone.status : this->phone.status);
-    socketOut.writeAttribute("outbound", (timeValid ? phone.outbound : this->phone.outbound) ? "true" : "false");
+    socketOut.writeAttribute("status", phone.status);
+    socketOut.writeAttribute("outbound", phone.outbound ? "true" : "false");
 
     if (!groupEmpty)
         socketOut.writeAttribute("group", group);
 
-    if (timeValid ? !phone.channel.isEmpty() : !this->phone.channel.isEmpty()) {
-        socketOut.writeAttribute((timeValid ? phone.active : this->phone.active) ? "activechannel" : "passivechannel",
-                                 timeValid ? phone.channel : this->phone.channel);
+    if (!phone.channel.isEmpty()) {
+        socketOut.writeAttribute(phone.active ? "activechannel" : "passivechannel", phone.channel);
     }
 
-    if (timeValid ? !phone.dnis.isEmpty() : !this->phone.dnis.isEmpty()) {
-        socketOut.writeEmptyElement((timeValid ? phone.active : this->phone.active) ? "callee" : "caller");
-        socketOut.writeAttribute("dnis", timeValid ? phone.dnis : this->phone.dnis);
+    if (!phone.dnis.isEmpty()) {
+        socketOut.writeEmptyElement(phone.active ? "callee" : "caller");
+        socketOut.writeAttribute("dnis", phone.dnis);
         socketOut.writeEndElement();
     }
 
@@ -384,7 +381,7 @@ void Client::changePhoneStatus(QString status, bool outbound)
     phone.status = status;
     phone.outbound = outbound;
 
-    sendAgentStatus();
+    sendAgentStatus(username, fullname, phone, handle, abandoned);
 
     emit phoneStatusChanged(status);
 

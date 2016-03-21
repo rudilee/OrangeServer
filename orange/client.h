@@ -8,6 +8,7 @@
 #include <QXmlStreamReader>
 #include <QXmlStreamWriter>
 #include <QSqlQuery>
+#include <QStringList>
 
 class Client : public QObject
 {
@@ -54,13 +55,14 @@ public:
 
     void setSocket(QTcpSocket *socket);
     void setExtension(QString extension);
+
     void forceLogout();
 
-    void sendAgentStatus(QString username = QString(),
-                         QString fullname = QString(),
+    void sendAgentStatus(QString username,
+                         QString fullname,
+                         Phone phone,
                          int handle = 0,
                          int abandoned = 0,
-                         Phone phone = Phone(),
                          QString group = QString());
 
 protected:
