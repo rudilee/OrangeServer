@@ -74,6 +74,11 @@ void Client::setSocket(QTcpSocket *socket)
     resetHeartbeatTimer();
 }
 
+void Client::setExtension(QString extension)
+{
+    this->extension = extension;
+}
+
 void Client::forceLogout()
 {
     if (agentId <= 0)
@@ -205,8 +210,7 @@ void Client::retrieveExtension()
 
     if (retrieveExtension.exec()) {
         if (retrieveExtension.next()) {
-            QString extension = retrieveExtension.value(1).toString();
-
+            extension = retrieveExtension.value(1).toString();
             agentExtenMapId = retrieveExtension.value(0).toUInt();
 
             if (!extension.isEmpty())
@@ -385,7 +389,11 @@ void Client::checkAuthentication(QString authentication, bool encrypted)
             socketOut.writeTextElement("level", QString::number(level));
             socketOut.writeTextElement("login", QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss"));
 
-            retrieveExtension();
+            if (!extension.isEmpty())
+                socketOut.writeTextElement("extension", extension);
+            else
+                retrieveExtension();
+
             retrieveSkills();
             startSession();
             startStatus(Login);

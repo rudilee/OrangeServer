@@ -47,6 +47,7 @@ public:
     Client::Phone getPhone();
 
     void setSocket(QTcpSocket *socket);
+    void setExtension(QString extension);
     void forceLogout();
 
     void sendAgentStatus(QString username = QString(),
@@ -90,7 +91,7 @@ private:
     quint32 agentId, agentExtenMapId;
     quint64 agentLogSessionId, agentLogStatusId;
 
-    QString username, fullname, group;
+    QString username, fullname, group, extension;
 
     Level level;
     Status status;
