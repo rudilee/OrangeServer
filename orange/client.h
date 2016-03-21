@@ -68,6 +68,7 @@ protected:
 
     void retrieveExtension();
     void retrieveSkills();
+    void retrieveGroups();
     void startSession();
     void endSession();
     void startStatus(Status status);
@@ -91,7 +92,8 @@ private:
     quint32 agentId, agentExtenMapId;
     quint64 agentLogSessionId, agentLogStatusId;
 
-    QString username, fullname, group, extension;
+    QString username, fullname, extension;
+    QStringList groups;
 
     Level level;
     Status status;

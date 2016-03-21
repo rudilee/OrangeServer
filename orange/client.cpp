@@ -247,6 +247,27 @@ void Client::retrieveSkills()
     }
 }
 
+void Client::retrieveGroups()
+{
+    QSqlQuery retrieveGroups;
+    retrieveGroups.prepare("SELECT name"
+                           "FROM acd_agent_group acd_ag "
+                           "LEFT JOIN acd_queue acd_q ON acd_ag.acd_queue_id = acd_q.acd_queue_id "
+                           "WHERE acd_ag.acd_agent_id = :agent_id");
+
+    retrieveGroups.bindValue(":agent_id", agentId);
+
+    if (retrieveGroups.exec()) {
+        groups.clear();
+
+        while (retrieveGroups.next()) {
+            groups << retrieveGroups.value(0).toString();
+        }
+    } else {
+        logFailedQuery(&retrieveGroups, "retrieving user's groups");
+    }
+}
+
 void Client::startSession()
 {
     QSqlQuery insertSession;
@@ -395,6 +416,7 @@ void Client::checkAuthentication(QString authentication, bool encrypted)
                 retrieveExtension();
 
             retrieveSkills();
+            retrieveGroups();
             startSession();
             startStatus(Login);
 
