@@ -32,14 +32,16 @@ protected:
     int circulateWorkerIndex();
 
     void forceLogoutUsers();
+    void broadcastAgentStatus(Client *client);
 
 private:
     QSettings *settings;
     QTcpServer server;
     QSqlDatabase database;
     QList<Worker *> workers;
-    QHash<QString, Client *> clientAddressMap; // key: IP Address
-    QHash<QString, Client *> clientUserMap; // key: Username
+    QHash<QString, Client *> clientIpAddressMap; // key: IP Address
+    QHash<QString, QString> clientUserMap; // key: Username, value: IP Address
+    QStringList superiorUsers;
     int workerCount, currentWorkerIndex;
 
 protected slots:
@@ -53,6 +55,7 @@ protected slots:
     void onClientUserStatusChanged(Client::Status status);
     void onClientPhoneStatusChanged(QString status);
     void onClientAskDialAuthorization(QString destination, QString customerId, QString campaign);
+    void onClientSpyAgentPhone(QString agentUsername);
     void onClientChangeAgentStatus(Client::Status status, QString extension);
 
 private slots:

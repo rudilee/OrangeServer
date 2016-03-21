@@ -50,7 +50,6 @@ void Service::start()
 void Service::stop()
 {
     forceLogoutUsers();
-    stopWorkers();
 
     qDebug("Service stopped");
 }
@@ -126,12 +125,17 @@ int Service::circulateWorkerIndex()
 
 void Service::forceLogoutUsers()
 {
-    QHashIterator<QString, Client *> clientAddress(clientAddressMap);
+    QHashIterator<QString, Client *> clientAddress(clientIpAddressMap);
 
     while (clientAddress.hasNext()) {
         clientAddress.next();
         clientAddress.value()->forceLogout();
     }
+}
+
+void Service::broadcastAgentStatus(Client *client)
+{
+    ;
 }
 
 void Service::onServerNewConnection()
@@ -144,7 +148,7 @@ void Service::onServerNewConnection()
         client->setSocket(newSocket);
         client->moveToThread(workers.at(circulateWorkerIndex()));
 
-        clientAddressMap.insert(clientAddress, client);
+        clientIpAddressMap.insert(clientAddress, client);
 
         connect(client, SIGNAL(socketDisconnected()), SLOT(onClientSocketDisconnected()));
         connect(client, SIGNAL(userLoggedIn()), SLOT(onClientUserLoggedIn()));
@@ -152,6 +156,7 @@ void Service::onServerNewConnection()
         connect(client, SIGNAL(userStatusChanged(Client::Status)), SLOT(onClientUserStatusChanged(Client::Status)));
         connect(client, SIGNAL(phoneStatusChanged(QString)), SLOT(onClientPhoneStatusChanged(QString)));
         connect(client, SIGNAL(askDialAuthorization(QString,QString,QString)), SLOT(onClientAskDialAuthorization(QString,QString,QString)));
+        connect(client, SIGNAL(spyAgentPhone(QString)), SLOT(onClientSpyAgentPhone(QString)));
         connect(client, SIGNAL(changeAgentStatus(Client::Status,QString)), SLOT(onClientChangeAgentStatus(Client::Status,QString)));
 
         qDebug() << "Client connected from:" BOLD BLUE << clientAddress << RESET;
@@ -172,10 +177,10 @@ void Service::onWorkerFinished()
 void Service::onClientSocketDisconnected()
 {
     Client *client = (Client *) sender();
-    QString clientAddress = clientAddressMap.key(client);
+    QString clientAddress = clientIpAddressMap.key(client);
 
     if (!clientAddress.isEmpty())
-        clientAddressMap.remove(clientAddress);
+        clientIpAddressMap.remove(clientAddress);
 
     disconnect(client);
 
@@ -185,8 +190,19 @@ void Service::onClientSocketDisconnected()
 void Service::onClientUserLoggedIn()
 {
     Client *client = (Client *) sender();
+    QString username = client->getUsername();
 
-    clientUserMap.insert(client->getUsername(), client);
+    if (clientUserMap.contains(username)) {
+        QString existingUserIpAddress = clientUserMap.take(username);
+
+        if (clientIpAddressMap.contains(existingUserIpAddress))
+            clientIpAddressMap.take(existingUserIpAddress)->forceLogout();
+    }
+
+    clientUserMap.insert(username, client->getIpAddress());
+
+    if (client->getLevel() > Client::Agent)
+        superiorUsers << username;
 }
 
 void Service::onClientUserLoggedOut()
@@ -196,6 +212,9 @@ void Service::onClientUserLoggedOut()
 
     if (clientUserMap.contains(username))
         clientUserMap.remove(username);
+
+    if (client->getLevel() > Client::Agent)
+        superiorUsers.removeAll(username);
 }
 
 void Service::onClientUserStatusChanged(Client::Status status)
@@ -209,6 +228,11 @@ void Service::onClientPhoneStatusChanged(QString status)
 }
 
 void Service::onClientAskDialAuthorization(QString destination, QString customerId, QString campaign)
+{
+    ;
+}
+
+void Service::onClientSpyAgentPhone(QString agentUsername)
 {
     ;
 }
