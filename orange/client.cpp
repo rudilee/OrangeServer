@@ -57,6 +57,28 @@ Client::Phone Client::getPhone()
     return phone;
 }
 
+int Client::getHandle()
+{
+    return handle;
+}
+
+void Client::setHandle(int handle)
+{
+    if (handle > 0)
+        this->handle = handle;
+}
+
+int Client::getAbandoned()
+{
+    return abandoned;
+}
+
+void Client::setAbandoned(int abandoned)
+{
+    if (abandoned > 0)
+        this->abandoned = abandoned;
+}
+
 void Client::setSocket(QTcpSocket *socket)
 {
     this->socket = socket;

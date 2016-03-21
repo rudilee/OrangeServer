@@ -46,6 +46,12 @@ public:
     Client::Level getLevel();
     Client::Phone getPhone();
 
+    int getHandle();
+    void setHandle(int handle);
+
+    int getAbandoned();
+    void setAbandoned(int abandoned);
+
     void setSocket(QTcpSocket *socket);
     void setExtension(QString extension);
     void forceLogout();
