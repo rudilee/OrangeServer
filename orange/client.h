@@ -13,6 +13,7 @@
 class Client : public QObject
 {
     Q_OBJECT
+    Q_ENUMS(Status)
 
 public:
     enum Level {
@@ -42,10 +43,12 @@ public:
     explicit Client(QObject *parent = 0);
     ~Client();
 
+    QString getIpAddress();
     QString getUsername();
     QString getFullname();
     Client::Level getLevel();
     Client::Phone getPhone();
+    QStringList getGroups();
 
     int getHandle();
     void setHandle(int handle);
@@ -122,7 +125,7 @@ signals:
     void phoneStatusChanged(QString status);
 
     void askDialAuthorization(QString destination, QString customerId, QString campaign);
-    void spyAgentPhone(QString username);
+    void spyAgentPhone(QString agentUsername);
     void changeAgentStatus(Client::Status status, QString extension);
 };
 

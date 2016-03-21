@@ -21,6 +21,8 @@ Client::Client(QObject *parent) :
     handle(0),
     abandoned(0)
 {
+    qRegisterMetaType<Client::Status>("Client::Status");
+
     socketOut.setAutoFormatting(true);
 
     statusText["ready"] = Ready;
@@ -35,6 +37,11 @@ Client::~Client()
     settings->deleteLater();
 
     qDebug("Client destroyed");
+}
+
+QString Client::getIpAddress()
+{
+    return socket->peerAddress().toString();
 }
 
 QString Client::getUsername()
@@ -55,6 +62,11 @@ Client::Level Client::getLevel()
 Client::Phone Client::getPhone()
 {
     return phone;
+}
+
+QStringList Client::getGroups()
+{
+    return groups;
 }
 
 int Client::getHandle()
@@ -112,8 +124,8 @@ void Client::forceLogout()
     socketOut.writeEndElement();
 
     socket->write("\n");
-
-    endLogging();
+    socket->flush();
+    socket->disconnectFromHost();
 }
 
 void Client::sendAgentStatus(QString username, QString fullname, Client::Phone phone, int handle, int abandoned, QString group)
@@ -269,7 +281,7 @@ void Client::retrieveSkills()
 void Client::retrieveGroups()
 {
     QSqlQuery retrieveGroups;
-    retrieveGroups.prepare("SELECT name"
+    retrieveGroups.prepare("SELECT name "
                            "FROM acd_agent_group acd_ag "
                            "LEFT JOIN acd_queue acd_q ON acd_ag.acd_queue_id = acd_q.acd_queue_id "
                            "WHERE acd_ag.acd_agent_id = :agent_id");
@@ -499,7 +511,11 @@ void Client::onSocketDisconnected()
 
     socket->deleteLater();
 
-    endLogging();
+    if (!username.isEmpty()) {
+        endLogging();
+
+        emit userLoggedOut();
+    }
 
     qDebug("Client disconnected");
 }
@@ -545,13 +561,8 @@ void Client::onSocketReadyRead()
             break;
         }
         case QXmlStreamReader::EndElement:
-            if (socketIn.name() == "stream") {
+            if (socketIn.name() == "stream")
                 socket->disconnectFromHost();
-
-                endLogging();
-
-                emit userLoggedOut();
-            }
 
             break;
         case QXmlStreamReader::Invalid:
