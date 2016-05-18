@@ -41,7 +41,7 @@ private:
     QList<Worker *> workers;
     QHash<QString, Client *> clientIpAddressMap; // key: IP Address
     QHash<QString, QString> clientUserMap; // key: Username, value: IP Address
-    QStringList superiorUsers;
+    QStringList agents, supervisors, managers;
     int workerCount, currentWorkerIndex;
 
 protected slots:

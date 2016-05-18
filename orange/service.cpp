@@ -193,16 +193,21 @@ void Service::onClientUserLoggedIn()
     QString username = client->getUsername();
 
     if (clientUserMap.contains(username)) {
-        QString existingUserIpAddress = clientUserMap.take(username);
+        client->forceLogout("same user login");
 
-        if (clientIpAddressMap.contains(existingUserIpAddress))
-            clientIpAddressMap.take(existingUserIpAddress)->forceLogout();
+        return;
     }
 
     clientUserMap.insert(username, client->getIpAddress());
 
-    if (client->getLevel() > Client::Agent)
-        superiorUsers << username;
+    switch (client->getLevel()) {
+    case Client::Agent: agents << username;
+        break;
+    case Client::Supervisor: supervisors << username;
+        break;
+    case Client::Manager: managers << username;
+        break;
+    }
 }
 
 void Service::onClientUserLoggedOut()
@@ -213,8 +218,14 @@ void Service::onClientUserLoggedOut()
     if (clientUserMap.contains(username))
         clientUserMap.remove(username);
 
-    if (client->getLevel() > Client::Agent)
-        superiorUsers.removeAll(username);
+    switch (client->getLevel()) {
+    case Client::Agent: agents.removeOne(username);
+        break;
+    case Client::Supervisor: supervisors.removeOne(username);
+        break;
+    case Client::Manager: managers.removeOne(username);
+        break;
+    }
 }
 
 void Service::onClientUserStatusChanged(Client::Status status)
