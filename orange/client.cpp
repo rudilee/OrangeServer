@@ -113,14 +113,14 @@ void Client::setExtension(QString extension)
     this->extension = extension;
 }
 
-void Client::forceLogout()
+void Client::forceLogout(QString status)
 {
     if (agentId <= 0)
         return;
 
     socketOut.writeStartElement("authentication");
     socketOut.writeAttribute("id", "force-logout");
-    socketOut.writeTextElement("status", "server stop services");
+    socketOut.writeTextElement("status", status);
     socketOut.writeEndElement();
 
     socket->write("\n");
@@ -306,7 +306,7 @@ void Client::startSession()
                           "VALUES (:agent_id, :agent_exten_map_id, :login_time)");
 
     insertSession.bindValue(":agent_id", agentId);
-    insertSession.bindValue(":agent_exten_map_id", agentExtenMapId);
+    insertSession.bindValue(":agent_exten_map_id", agentExtenMapId <= 0 ? QVariant() : agentExtenMapId);
     insertSession.bindValue(":login_time", QDateTime::currentDateTime());
 
     if (insertSession.exec())

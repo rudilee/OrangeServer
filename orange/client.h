@@ -59,7 +59,7 @@ public:
     void setSocket(QTcpSocket *socket);
     void setExtension(QString extension);
 
-    void forceLogout();
+    void forceLogout(QString status = "server stop services");
 
     void sendAgentStatus(QString username,
                          QString fullname,
