@@ -9,7 +9,6 @@
 Service::Service(int &argc, char **argv) :
     QObject(),
     QtService<QCoreApplication>(argc, argv, APPLICATION_NAME),
-    settings(new QSettings(CONFIG_FILE, QSettings::IniFormat)),
     workerCount(1),
     currentWorkerIndex(0)
 {
@@ -18,8 +17,6 @@ Service::Service(int &argc, char **argv) :
 
 Service::~Service()
 {
-    settings->deleteLater();
-
     qDebug("Service destroyed");
 }
 
@@ -27,8 +24,11 @@ void Service::createApplication(int &argc, char **argv)
 {
     QtService::createApplication(argc, argv);
 
+    setupSettings();
     setupServer();
     setupDatabase();
+    setupAsterisk();
+    createWorkers();
 
     qDebug("Application created");
 }
@@ -41,8 +41,8 @@ void Service::processCommand(int code)
 void Service::start()
 {
     startServer();
-    createWorkers();
     openDatabase();
+    connectToAsterisk();
 
     qDebug("Service started");
 }
@@ -50,8 +50,17 @@ void Service::start()
 void Service::stop()
 {
     forceLogoutUsers();
+//    stopWorkers();
+
+    settings->deleteLater();
+    asterisk->deleteLater();
 
     qDebug("Service stopped");
+}
+
+void Service::setupSettings()
+{
+    settings = new QSettings(CONFIG_FILE, QSettings::IniFormat);
 }
 
 void Service::setupServer()
@@ -68,6 +77,16 @@ void Service::startServer()
     server.listen(QHostAddress::Any, port);
 
     qDebug() << "Server started, listening on port:" BOLD BLUE << port << RESET;
+}
+
+void Service::setupAsterisk()
+{
+    QString host = settings->value("asterisk/host", "localhost").toString();
+    quint16 port = settings->value("asterisk/port", 5038).toUInt();
+
+    asterisk = new Asterisk(this, host, port);
+
+    connect(asterisk, SIGNAL(eventReceived(QString,QVariantHash)), SLOT(onAsteriskEventReceived(QString,QVariantHash)));
 }
 
 void Service::createWorkers()
@@ -161,6 +180,12 @@ void Service::onServerNewConnection()
 
         qDebug() << "Client connected from:" BOLD BLUE << clientAddress << RESET;
     }
+}
+
+void Service::onAsteriskEventReceived(QString event, QVariantHash headers)
+{
+    if (event == "FullyBooted")
+        asterisk->coreShowChannels();
 }
 
 void Service::onWorkerFinished()
@@ -264,4 +289,18 @@ void Service::openDatabase()
             qDebug("Database connected");
         }
     }
+}
+
+void Service::connectToAsterisk()
+{
+    QString username = settings->value("asterisk/username").toString(),
+            secret = settings->value("asterisk/secret").toString();
+
+    QVariantHash response = asterisk->login(username, secret);
+    QString message = response["Message"].toString();
+
+    if (response["Response"].toString() == "Success")
+        qDebug() << "Asterisk login " BOLD GREEN "Succeed" RESET << message;
+    else
+        qDebug() << "Asterisk login " BOLD RED "Failed" RESET << message;
 }

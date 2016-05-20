@@ -6,6 +6,7 @@
 #include <QSqlDatabase>
 #include <QTcpServer>
 
+#include "asterisk.h"
 #include "worker.h"
 #include "client.h"
 
@@ -23,8 +24,10 @@ protected:
     void start();
     void stop();
 
+    void setupSettings();
     void setupServer();
     void startServer();
+    void setupAsterisk();
     void createWorkers();
     void stopWorkers();
     void setupDatabase();
@@ -38,6 +41,7 @@ private:
     QSettings *settings;
     QTcpServer server;
     QSqlDatabase database;
+    Asterisk *asterisk;
     QList<Worker *> workers;
     QHash<QString, Client *> clientIpAddressMap; // key: IP Address
     QHash<QString, QString> clientUserMap; // key: Username, value: IP Address
@@ -46,6 +50,8 @@ private:
 
 protected slots:
     void onServerNewConnection();
+
+    void onAsteriskEventReceived(QString event, QVariantHash headers);
 
     void onWorkerFinished();
 
@@ -60,6 +66,7 @@ protected slots:
 
 private slots:
     void openDatabase();
+    void connectToAsterisk();
 };
 
 #endif // SERVICE_H

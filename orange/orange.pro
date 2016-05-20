@@ -20,11 +20,13 @@ TEMPLATE = app
 SOURCES += main.cpp \
     service.cpp \
     worker.cpp \
-    client.cpp
+    client.cpp \
+    asterisk.cpp
 
 HEADERS += \
     service.h \
     worker.h \
     client.h \
     common.h \
-    terminal.h
+    terminal.h \
+    asterisk.h
