@@ -111,6 +111,8 @@ void Client::setSocket(QTcpSocket *socket)
 void Client::setExtension(QString extension)
 {
     this->extension = extension;
+
+    emit userExtensionChanged(extension);
 }
 
 void Client::forceLogout(QString status)
@@ -126,6 +128,27 @@ void Client::forceLogout(QString status)
     socket->write("\n");
     socket->flush();
     socket->disconnectFromHost();
+}
+
+void Client::changeStatus(Client::Status status)
+{
+    endStatus();
+    startStatus(status);
+
+    emit userStatusChanged(status);
+}
+
+void Client::changePhoneStatus(QString status, bool outbound)
+{
+    phone.time = QDateTime::currentDateTime();
+    phone.status = status;
+    phone.outbound = outbound;
+
+    sendAgentStatus(username, fullname, phone, handle, abandoned);
+
+    emit phoneStatusChanged(status);
+
+    qDebug() << "Phone status of" BOLD BLUE << username << RESET "changed to:" BOLD BLUE << status << RESET;
 }
 
 void Client::sendAgentStatus(QString username, QString fullname, Client::Phone phone, int handle, int abandoned, QString group)
@@ -162,8 +185,17 @@ void Client::sendAgentStatus(QString username, QString fullname, Client::Phone p
         socketOut.writeEndElement();
     }
 
-    socketOut.writeEndElement();
+    socketOut.writeEndElement(); // phone
 
+    socketOut.writeEndElement(); // agent
+
+    socket->write("\n");
+}
+
+void Client::sendDialerResponse(QString formattedNumber)
+{
+    socketOut.writeStartElement("dialer");
+    socketOut.writeAttribute("formatted-number", formattedNumber);
     socketOut.writeEndElement();
 
     socket->write("\n");
@@ -241,8 +273,9 @@ void Client::retrieveExtension()
 
     if (retrieveExtension.exec()) {
         if (retrieveExtension.next()) {
-            extension = retrieveExtension.value(1).toString();
             agentExtenMapId = retrieveExtension.value(0).toUInt();
+
+            setExtension(retrieveExtension.value(1).toString());
 
             if (!extension.isEmpty())
                 socketOut.writeTextElement("extension", extension);
@@ -269,10 +302,9 @@ void Client::retrieveSkills()
             socketOut.writeEmptyElement("skill");
             socketOut.writeAttribute("name", retrieveSkills.value(0).toString());
             socketOut.writeAttribute("id", retrieveSkills.value(1).toString());
-            socketOut.writeEndElement();
         }
 
-        socketOut.writeEndElement();
+        socketOut.writeEndElement(); // transfer
     } else {
         logFailedQuery(&retrieveSkills, "retrieving user's skills");
     }
@@ -352,14 +384,6 @@ void Client::startStatus(Status status)
         logFailedQuery(&insertStatus, "inserting status log");
 }
 
-void Client::changeStatus(Client::Status status)
-{
-    endStatus();
-    startStatus(status);
-
-    emit userStatusChanged(status);
-}
-
 void Client::endStatus()
 {
     if (agentLogStatusId <= 0)
@@ -385,19 +409,6 @@ void Client::endLogging()
         changeStatus(Logout);
 
     endSession();
-}
-
-void Client::changePhoneStatus(QString status, bool outbound)
-{
-    phone.time = QDateTime::currentDateTime();
-    phone.status = status;
-    phone.outbound = outbound;
-
-    sendAgentStatus(username, fullname, phone, handle, abandoned);
-
-    emit phoneStatusChanged(status);
-
-    qDebug() << "Phone status of" BOLD BLUE << username << RESET "changed to:" BOLD BLUE << status << RESET;
 }
 
 void Client::resetHeartbeatTimer()
@@ -466,7 +477,7 @@ void Client::checkAuthentication(QString authentication, bool encrypted)
     if (!message.isEmpty())
         socketOut.writeTextElement("message", message);
 
-    socketOut.writeEndElement();
+    socketOut.writeEndElement(); // authentication
 
     socket->write("\n");
 }
@@ -498,9 +509,8 @@ void Client::dispatchAction(QString actionType, QXmlStreamAttributes attributes)
         QString group = attributes.value("group").toString(),
                 extension = attributes.value("extension").toString();
 
-        emit changeAgentStatus(ready ? Ready : NotReady, extension);
+        emit changeAgentStatus(ready ? Ready : NotReady, outbound, extension);
 
-        Q_UNUSED(outbound)
         Q_UNUSED(group)
     }
 }

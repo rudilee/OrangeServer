@@ -61,12 +61,17 @@ public:
 
     void forceLogout(QString status = "server stop services");
 
+    void changeStatus(Status status);
+    void changePhoneStatus(QString status, bool outbound);
+
     void sendAgentStatus(QString username,
                          QString fullname,
                          Phone phone,
                          int handle = 0,
                          int abandoned = 0,
                          QString group = QString());
+
+    void sendDialerResponse(QString formattedNumber);
 
 protected:
     void timerEvent(QTimerEvent *event);
@@ -83,10 +88,8 @@ protected:
     void startSession();
     void endSession();
     void startStatus(Status status);
-    void changeStatus(Status status);
     void endStatus();
     void endLogging();
-    void changePhoneStatus(QString status, bool outbound);
 
     void resetHeartbeatTimer();
     void checkAuthentication(QString authentication, bool encrypted);
@@ -121,12 +124,13 @@ signals:
 
     void userLoggedIn();
     void userLoggedOut();
+    void userExtensionChanged(QString extension);
     void userStatusChanged(Client::Status status);
     void phoneStatusChanged(QString status);
 
     void askDialAuthorization(QString destination, QString customerId, QString campaign);
     void spyAgentPhone(QString agentUsername);
-    void changeAgentStatus(Client::Status status, QString extension);
+    void changeAgentStatus(Client::Status status, bool outbound, QString extension);
 };
 
 #endif // CLIENT_H
