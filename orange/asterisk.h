@@ -15,7 +15,9 @@ public:
 
     QVariantHash login(QString username, QString secret);
     QVariantHash logout();
+
     QVariantHash coreShowChannels();
+    QVariantHash sipPeers();
 
     QVariantHash originate(QString channel,
                            QString exten = QString(),

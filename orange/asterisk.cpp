@@ -56,6 +56,11 @@ QVariantHash Asterisk::coreShowChannels()
     return sendPacket("CoreShowChannels");
 }
 
+QVariantHash Asterisk::sipPeers()
+{
+    return sendPacket("SIPpeers");
+}
+
 QVariantHash Asterisk::originate(QString channel,
                                  QString exten,
                                  QString context,
@@ -190,6 +195,7 @@ QVariantHash Asterisk::sendPacket(QString action, QVariantHash headers)
         }
 
         socket.write("\r\n");
+        socket.flush();
         socket.waitForReadyRead();
     }
 
