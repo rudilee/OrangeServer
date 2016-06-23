@@ -43,10 +43,13 @@ private:
     QSqlDatabase database;
     Asterisk *asterisk;
     QList<Worker *> workers;
-    QHash<QString, Client *> clientIpAddressMap; // key: IP Address
-    QHash<QString, QString> clientUserMap; // key: Username, value: IP Address
+    QHash<QString, Client *> addressClientMap; // key: IP Address
+    QHash<QString, QString> usernameAddressMap; // key: Username, value: IP Address
+    QHash<QString, QString> extensionUsernameMap; // key: Extension, value: Username
     QStringList agents, supervisors, managers;
     int workerCount, currentWorkerIndex;
+
+    bool checkGroupIntersected(Client *superior, Client *subordinate);
 
 protected slots:
     void onServerNewConnection();
@@ -58,11 +61,12 @@ protected slots:
     void onClientSocketDisconnected();
     void onClientUserLoggedIn();
     void onClientUserLoggedOut();
+    void onClientUserExtensionChanged(QString extension);
     void onClientUserStatusChanged(Client::Status status);
     void onClientPhoneStatusChanged(QString status);
     void onClientAskDialAuthorization(QString destination, QString customerId, QString campaign);
     void onClientSpyAgentPhone(QString agentUsername);
-    void onClientChangeAgentStatus(Client::Status status, QString extension);
+    void onClientChangeAgentStatus(Client::Status status, bool outbound, QString extension);
 
 private slots:
     void openDatabase();

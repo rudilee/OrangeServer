@@ -144,7 +144,7 @@ int Service::circulateWorkerIndex()
 
 void Service::forceLogoutUsers()
 {
-    QHashIterator<QString, Client *> clientAddress(clientIpAddressMap);
+    QHashIterator<QString, Client *> clientAddress(addressClientMap);
 
     while (clientAddress.hasNext()) {
         clientAddress.next();
@@ -157,6 +157,11 @@ void Service::broadcastAgentStatus(Client *client)
     ;
 }
 
+bool Service::checkGroupIntersected(Client *superior, Client *subordinate)
+{
+    return !superior->getGroups().toSet().intersect(subordinate->getGroups().toSet()).isEmpty();
+}
+
 void Service::onServerNewConnection()
 {
     if (server.hasPendingConnections()) {
@@ -167,7 +172,7 @@ void Service::onServerNewConnection()
         client->setSocket(newSocket);
         client->moveToThread(workers.at(circulateWorkerIndex()));
 
-        clientIpAddressMap.insert(clientAddress, client);
+        addressClientMap.insert(clientAddress, client);
 
         connect(client, SIGNAL(socketDisconnected()), SLOT(onClientSocketDisconnected()));
         connect(client, SIGNAL(userLoggedIn()), SLOT(onClientUserLoggedIn()));
@@ -176,7 +181,7 @@ void Service::onServerNewConnection()
         connect(client, SIGNAL(phoneStatusChanged(QString)), SLOT(onClientPhoneStatusChanged(QString)));
         connect(client, SIGNAL(askDialAuthorization(QString,QString,QString)), SLOT(onClientAskDialAuthorization(QString,QString,QString)));
         connect(client, SIGNAL(spyAgentPhone(QString)), SLOT(onClientSpyAgentPhone(QString)));
-        connect(client, SIGNAL(changeAgentStatus(Client::Status,QString)), SLOT(onClientChangeAgentStatus(Client::Status,QString)));
+        connect(client, SIGNAL(changeAgentStatus(Client::Status,bool,QString)), SLOT(onClientChangeAgentStatus(Client::Status,bool,QString)));
 
         qDebug() << "Client connected from:" BOLD BLUE << clientAddress << RESET;
     }
@@ -184,8 +189,14 @@ void Service::onServerNewConnection()
 
 void Service::onAsteriskEventReceived(QString event, QVariantHash headers)
 {
-    if (event == "FullyBooted")
+    if (event == "FullyBooted") {
+        asterisk->sipPeers();
         asterisk->coreShowChannels();
+    } else if (event == "PeerEntry" || event == "Registry") {
+        ;
+    } else if (event == "CoreShowChannel" || event == "Newchannel") {
+        ;
+    }
 }
 
 void Service::onWorkerFinished()
@@ -202,10 +213,10 @@ void Service::onWorkerFinished()
 void Service::onClientSocketDisconnected()
 {
     Client *client = (Client *) sender();
-    QString clientAddress = clientIpAddressMap.key(client);
+    QString clientAddress = addressClientMap.key(client);
 
     if (!clientAddress.isEmpty())
-        clientIpAddressMap.remove(clientAddress);
+        addressClientMap.remove(clientAddress);
 
     disconnect(client);
 
@@ -217,13 +228,13 @@ void Service::onClientUserLoggedIn()
     Client *client = (Client *) sender();
     QString username = client->getUsername();
 
-    if (clientUserMap.contains(username)) {
+    if (usernameAddressMap.contains(username)) {
         client->forceLogout("same user login");
 
         return;
     }
 
-    clientUserMap.insert(username, client->getIpAddress());
+    usernameAddressMap.insert(username, client->getIpAddress());
 
     switch (client->getLevel()) {
     case Client::Agent: agents << username;
@@ -240,8 +251,8 @@ void Service::onClientUserLoggedOut()
     Client *client = (Client *) sender();
     QString username = client->getUsername();
 
-    if (clientUserMap.contains(username))
-        clientUserMap.remove(username);
+    if (usernameAddressMap.contains(username))
+        usernameAddressMap.remove(username);
 
     switch (client->getLevel()) {
     case Client::Agent: agents.removeOne(username);
@@ -251,6 +262,13 @@ void Service::onClientUserLoggedOut()
     case Client::Manager: managers.removeOne(username);
         break;
     }
+}
+
+void Service::onClientUserExtensionChanged(QString extension)
+{
+    Client *client = (Client *) sender();
+
+    extensionUsernameMap.insert(extension, client->getUsername());
 }
 
 void Service::onClientUserStatusChanged(Client::Status status)
@@ -265,7 +283,10 @@ void Service::onClientPhoneStatusChanged(QString status)
 
 void Service::onClientAskDialAuthorization(QString destination, QString customerId, QString campaign)
 {
-    ;
+    Client *client = (Client *) sender();
+    client->sendDialerResponse(destination);
+
+    qDebug() << "User" BOLD BLUE << client->getUsername() << RESET "dialing" BOLD BLUE << destination << RESET;
 }
 
 void Service::onClientSpyAgentPhone(QString agentUsername)
@@ -273,9 +294,17 @@ void Service::onClientSpyAgentPhone(QString agentUsername)
     ;
 }
 
-void Service::onClientChangeAgentStatus(Client::Status status, QString extension)
+void Service::onClientChangeAgentStatus(Client::Status status, bool outbound, QString extension)
 {
-    ;
+    Client *client = (Client *) sender(),
+           *target = addressClientMap.value(usernameAddressMap.value(extensionUsernameMap.value(extension)));
+
+    if (target != NULL) {
+        if (checkGroupIntersected(client, target)) {
+            target->changeStatus(status);
+            target->changePhoneStatus(status == Client::Ready ? "ready" : "aux", outbound);
+        }
+    }
 }
 
 void Service::openDatabase()
