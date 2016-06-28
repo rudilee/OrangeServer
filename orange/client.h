@@ -28,7 +28,13 @@ public:
         NotReady,
         Logout,
         AUX,
-        ACW
+        ACW,
+        Free,
+        Initiate,
+        Originate,
+        Ringing,
+        Busy,
+        ReleaseCallee
     };
 
     struct Phone {
@@ -57,6 +63,8 @@ public:
     void setAbandoned(int abandoned);
 
     void setSocket(QTcpSocket *socket);
+
+    QString getExtension();
     void setExtension(QString extension);
 
     void forceLogout(QString status = "server stop services");
@@ -69,7 +77,15 @@ public:
                          Phone phone,
                          int handle = 0,
                          int abandoned = 0,
-                         QString group = QString());
+                         QString group = QString(),
+                         QDateTime login = QDateTime(),
+                         QString address = QString(),
+                         QString extension = QString());
+
+    void sendAgentLogout(QString username,
+                         QString extension,
+                         QString group,
+                         QString address);
 
     void sendDialerResponse(QString formattedNumber);
 

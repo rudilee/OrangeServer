@@ -67,7 +67,7 @@ void Service::setupServer()
 {
     connect(&server, SIGNAL(newConnection()), SLOT(onServerNewConnection()));
 
-    qDebug("Server was setup");
+    qDebug("Server has been setup");
 }
 
 void Service::startServer()
@@ -177,8 +177,6 @@ void Service::onServerNewConnection()
         connect(client, SIGNAL(socketDisconnected()), SLOT(onClientSocketDisconnected()));
         connect(client, SIGNAL(userLoggedIn()), SLOT(onClientUserLoggedIn()));
         connect(client, SIGNAL(userLoggedOut()), SLOT(onClientUserLoggedOut()));
-        connect(client, SIGNAL(userStatusChanged(Client::Status)), SLOT(onClientUserStatusChanged(Client::Status)));
-        connect(client, SIGNAL(phoneStatusChanged(QString)), SLOT(onClientPhoneStatusChanged(QString)));
         connect(client, SIGNAL(askDialAuthorization(QString,QString,QString)), SLOT(onClientAskDialAuthorization(QString,QString,QString)));
         connect(client, SIGNAL(spyAgentPhone(QString)), SLOT(onClientSpyAgentPhone(QString)));
         connect(client, SIGNAL(changeAgentStatus(Client::Status,bool,QString)), SLOT(onClientChangeAgentStatus(Client::Status,bool,QString)));
@@ -236,13 +234,11 @@ void Service::onClientUserLoggedIn()
 
     usernameAddressMap.insert(username, client->getIpAddress());
 
-    switch (client->getLevel()) {
-    case Client::Agent: agents << username;
-        break;
-    case Client::Supervisor: supervisors << username;
-        break;
-    case Client::Manager: managers << username;
-        break;
+    foreach (QString group, client->getGroups()) {
+        if (!groups.contains(group))
+            groups.insert(group, new Group(group, this));
+
+        groups.value(group)->addMember(client);
     }
 }
 
@@ -253,15 +249,6 @@ void Service::onClientUserLoggedOut()
 
     if (usernameAddressMap.contains(username))
         usernameAddressMap.remove(username);
-
-    switch (client->getLevel()) {
-    case Client::Agent: agents.removeOne(username);
-        break;
-    case Client::Supervisor: supervisors.removeOne(username);
-        break;
-    case Client::Manager: managers.removeOne(username);
-        break;
-    }
 }
 
 void Service::onClientUserExtensionChanged(QString extension)
@@ -269,16 +256,6 @@ void Service::onClientUserExtensionChanged(QString extension)
     Client *client = (Client *) sender();
 
     extensionUsernameMap.insert(extension, client->getUsername());
-}
-
-void Service::onClientUserStatusChanged(Client::Status status)
-{
-    ;
-}
-
-void Service::onClientPhoneStatusChanged(QString status)
-{
-    ;
 }
 
 void Service::onClientAskDialAuthorization(QString destination, QString customerId, QString campaign)

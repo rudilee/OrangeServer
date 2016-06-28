@@ -21,7 +21,8 @@ SOURCES += main.cpp \
     service.cpp \
     worker.cpp \
     client.cpp \
-    asterisk.cpp
+    asterisk.cpp \
+    group.cpp
 
 HEADERS += \
     service.h \
@@ -29,4 +30,5 @@ HEADERS += \
     client.h \
     common.h \
     terminal.h \
-    asterisk.h
+    asterisk.h \
+    group.h

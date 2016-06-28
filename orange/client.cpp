@@ -26,8 +26,16 @@ Client::Client(QObject *parent) :
     socketOut.setAutoFormatting(true);
 
     statusText["ready"] = Ready;
+    statusText["not-ready"] = NotReady;
     statusText["acw"] = ACW;
     statusText["aux"] = AUX;
+
+    statusText["free"] = Free;
+    statusText["initiate"] = Initiate;
+    statusText["originate"] = Originate;
+    statusText["ringing"] = Ringing;
+    statusText["busy"] = Busy;
+    statusText["release-callee"] = ReleaseCallee;
 
     qDebug("Client initialized");
 }
@@ -108,6 +116,11 @@ void Client::setSocket(QTcpSocket *socket)
     resetHeartbeatTimer();
 }
 
+QString Client::getExtension()
+{
+    return extension;
+}
+
 void Client::setExtension(QString extension)
 {
     this->extension = extension;
@@ -151,7 +164,7 @@ void Client::changePhoneStatus(QString status, bool outbound)
     qDebug() << "Phone status of" BOLD BLUE << username << RESET "changed to:" BOLD BLUE << status << RESET;
 }
 
-void Client::sendAgentStatus(QString username, QString fullname, Client::Phone phone, int handle, int abandoned, QString group)
+void Client::sendAgentStatus(QString username, QString fullname, Client::Phone phone, int handle, int abandoned, QString group, QDateTime login, QString address, QString extension)
 {
     bool groupEmpty = group.isEmpty();
 
@@ -166,7 +179,16 @@ void Client::sendAgentStatus(QString username, QString fullname, Client::Phone p
     socketOut.writeTextElement("handle", QString::number(handle));
     socketOut.writeTextElement("abandoned", QString::number(abandoned));
 
+    if (login.isValid())
+        socketOut.writeTextElement("login", login.toString("yyyy-MM-dd HH:mm:ss"));
+
     socketOut.writeTextElement("time", phone.time.toString("yyyy-MM-dd HH:mm:ss"));
+
+    if (!address.isEmpty())
+        socketOut.writeTextElement("address", address);
+
+    if (!extension.isEmpty())
+        socketOut.writeTextElement("extension", extension);
 
     socketOut.writeStartElement("phone");
     socketOut.writeAttribute("status", phone.status);
@@ -182,7 +204,6 @@ void Client::sendAgentStatus(QString username, QString fullname, Client::Phone p
     if (!phone.dnis.isEmpty()) {
         socketOut.writeEmptyElement(phone.active ? "callee" : "caller");
         socketOut.writeAttribute("dnis", phone.dnis);
-        socketOut.writeEndElement();
     }
 
     socketOut.writeEndElement(); // phone
@@ -190,6 +211,18 @@ void Client::sendAgentStatus(QString username, QString fullname, Client::Phone p
     socketOut.writeEndElement(); // agent
 
     socket->write("\n");
+}
+
+void Client::sendAgentLogout(QString username, QString extension, QString group, QString address)
+{
+    socketOut.writeStartElement("agent");
+    socketOut.writeTextElement("username", username);
+    socketOut.writeTextElement("extension", extension);
+    socketOut.writeTextElement("group", group);
+    socketOut.writeTextElement("address", address);
+    socketOut.writeEmptyElement("logout");
+    socketOut.writeEndElement(); // logout
+    socketOut.writeEndElement(); // agent
 }
 
 void Client::sendDialerResponse(QString formattedNumber)
